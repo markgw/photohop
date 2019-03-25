@@ -48,6 +48,7 @@ class Slideshow(object):
         # How much to rotate the current image by
         self.rotation = 0
 
+        ## Build the UI
         # Label to contain current image
         self.imglbl = tk.Label(parent, bg="Black")
         # Label overlaid for name and other info
@@ -56,6 +57,11 @@ class Slideshow(object):
         self.info_lbl.pack(side="bottom")
         # label occupies all available space
         self.imglbl.pack(fill=tk.BOTH, expand=True)
+        #self.button_frame = tk.Frame(self.imglbl)
+
+        # set application window title
+        self.ma.wm_title("PhotoHop slideshow")
+        self.ma.title("PhotoHop slideshow: {}".format(self.selector.root_dir))
 
         self.current_image = None
         self.history = []
@@ -149,9 +155,6 @@ class Slideshow(object):
         # create new image instead
         self._photo_image = ImageTk.PhotoImage(image)
         self.imglbl.configure(image=self._photo_image)
-
-        # set application window title
-        self.ma.wm_title(path)
 
         if new_image:
             self._on_new_image(selected_image)
