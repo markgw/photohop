@@ -5,8 +5,9 @@ file and then run something like:
   PYTHONPATH=$PYTHONPATH:./src python3 -m photohop.run
 
 """
-from photohop.slideshow import random_slideshow
 import os
+
+from photohop.slideshow import random_slideshow
 
 # Set these variables for configure the slideshow
 # Root directory of your photo collection
@@ -22,4 +23,4 @@ history = os.path.join(os.getcwd(), "viewing_history.txt")
 file_manager_cmd = "nemo {image}"
 
 # Set the slideshow going
-random_slideshow(photo_root, history=history, exclude=exclude, file_manager_cmd=file_manager_cmd)
+random_slideshow(exclude=exclude)

@@ -17,31 +17,51 @@ import logging
 import os
 import subprocess
 import tkinter as tk
+import tkinter.ttk as ttk
+import ttkthemes
+from pathlib import Path
+from tkinter import filedialog
 from collections import OrderedDict
 
 from PIL import Image, ExifTags  # $ pip install pillow
 from PIL import ImageTk
 
+from photohop.config import Config
 from photohop.selector import SelectedPhoto, image_filenames, PhotoSelector
 
 debug = logging.debug
 
 
-def random_slideshow(photo_root, history, exclude=[], file_manager_cmd=None):
+def random_slideshow(photo_root=None, exclude=[]):
+    config = Config.load()
+
+    master = tk.Tk()
+    master.style = ttkthemes.ThemedStyle()
+    master.style.theme_use("equilux")
+    hide_hidden_files(master)
+
+    if photo_root is None:
+        # Open dialog to select root
+        photo_root = filedialog.askdirectory(
+            initialdir=str(Path.home()),
+            title="Select a root directory to search for photos"
+        )
+        if not photo_root:
+            print("No photo root given: exiting")
+            return
     # Index collection in given dir
     photo_selector = PhotoSelector(photo_root, exclude)
 
-    master = tk.Tk()
     # Set up a slideshow
-    Slideshow(master, photo_selector, history, file_manager_cmd=file_manager_cmd)
+    Slideshow(master, photo_selector, config)
     master.focus_set()
 
     master.mainloop()
 
 
 class Slideshow(object):
-    def __init__(self, parent, selector, history_path=None, file_manager_cmd=None):
-        self.file_manager_cmd = file_manager_cmd
+    def __init__(self, parent, selector, config):
+        self.config = config
         self.selector = selector
         self.ma = parent.winfo_toplevel()
         self._photo_image = None  # must hold reference to PhotoImage
@@ -50,14 +70,62 @@ class Slideshow(object):
 
         ## Build the UI
         # Label to contain current image
-        self.imglbl = tk.Label(parent, bg="Black")
+        self.imglbl = ttk.Label(parent, background="Black", anchor=tk.CENTER)
+        self.bottom_area = ttk.Frame(self.imglbl)
+        self.bottom_area.pack(side=tk.BOTTOM)
+        self.l_button_frame = ttk.Frame(self.bottom_area)
+        self.r_button_frame = ttk.Frame(self.bottom_area)
         # Label overlaid for name and other info
         self.info_var = tk.StringVar()
-        self.info_lbl = tk.Label(self.imglbl, textvariable=self.info_var)
-        self.info_lbl.pack(side="bottom")
+        self.info_lbl = ttk.Label(self.bottom_area, textvariable=self.info_var, justify=tk.CENTER, padding=3)
+        self.l_button_frame.pack(side=tk.LEFT)
+        self.info_lbl.pack(side=tk.LEFT)
+        self.r_button_frame.pack(side=tk.LEFT)
+
+        # Buttons
+        self.next_button = ttk.Button(self.r_button_frame, text=">", command=self.next_image)
+        self.next_button.pack(side=tk.LEFT)
+        self.previous_button = ttk.Button(self.l_button_frame, text="<", command=self.prev_image)
+        self.previous_button.pack(side=tk.LEFT)
+
         # label occupies all available space
         self.imglbl.pack(fill=tk.BOTH, expand=True)
-        #self.button_frame = tk.Frame(self.imglbl)
+
+        # Configure keybindings
+        self.ma.bind("<Escape>", lambda _: self.ma.destroy())  # exit on Esc
+        self.ma.bind("q", lambda _: self.ma.destroy())  # exit on q
+        self.ma.bind('<Prior>', self.prev_image)
+        self.ma.bind('<Left>', self.prev_image)
+        self.ma.bind('<Next>', self.next_image)
+        self.ma.bind('<Right>', self.next_image)
+        self.ma.bind("<space>", self.next_image)
+        self.ma.bind("r", self.rotate90)
+        self.ma.bind("R", self.rotate270)
+        self.ma.bind("d", self.queue_current_dir)
+        self.ma.bind("<End>", self.random_image)
+
+        self.ma.bind("<Configure>", self.fit_image)  # fit image on resize
+        # Toggle fullscreen with F11
+        self.ma.bind("<F11>", self.toggle_fullscreen)
+
+        # Open a file manager on the current image with f
+        self.ma.bind("f", self.open_file_manager)
+
+        self.context_menu = tk.Menu(self.ma)
+        self.context_menu.add_command(label="Previous", command=self.prev_image, accelerator="Left")
+        self.context_menu.add_command(label="Next", command=self.next_image, accelerator="Right")
+        self.context_menu.add_command(label="View directory", command=self.queue_current_dir, accelerator="d")
+        self.context_menu.add_command(label="Next random jump", command=self.random_image, accelerator="End")
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Rotate right", command=self.rotate90, accelerator="r")
+        self.context_menu.add_command(label="Rotate left", command=self.rotate270, accelerator="Shift+r")
+        self.context_menu.add_command(label="Toggle fullscreen", command=self.toggle_fullscreen, accelerator="F11")
+
+        def popup(event):
+            """ Show popup menu on right click """
+            self.context_menu.tk_popup(event.x_root, event.y_root)
+
+        self.ma.bind("<Button-3>", popup)
 
         # set application window title
         self.ma.wm_title("PhotoHop slideshow")
@@ -77,31 +145,20 @@ class Slideshow(object):
         # Don't start in fullscreen
         self.fullscreen_off()
 
-        # Configure keybindings
-        self.ma.bind("<Escape>", lambda _: self.ma.destroy())  # exit on Esc
-        self.ma.bind('<Prior>', self.prev_image)
-        self.ma.bind('<Left>', self.prev_image)
-        self.ma.bind('<Next>', self.next_image)
-        self.ma.bind('<Right>', self.next_image)
-        self.ma.bind("<space>", self.next_image)
-        self.ma.bind("r", self.rotate90)
-        self.ma.bind("R", self.rotate270)
-        self.ma.bind("d", self.queue_current_dir)
-        self.ma.bind("<End>", self.random_image)
-
-        self.ma.bind("<Configure>", self.fit_image)  # fit image on resize
-        # Toggle fullscreen with F11
-        self.ma.bind("<F11>", self.toggle_fullscreen)
-
-        # Open a file manager on the current image with f
-        self.ma.bind("f", self.open_file_manager)
-
         # Haven't got this working yet
-        self.viewing_history = ViewingHistory(history_path)
+        self.viewing_history = ViewingHistory(self.history_path)
         self.viewing_history.new_session(datetime.datetime.now().strftime("%Y:%m:%d %H:%M:%S"))
 
         # Start with a random image
         self.ma.after(1, self.next_image)
+
+    @property
+    def file_manager_cmd(self):
+        return self.config["file_manager_cmd"]
+
+    @property
+    def history_path(self):
+        return self.config["history_path"]
 
     def toggle_fullscreen(self, event_unused=None):
         if self.fullscreen:
@@ -190,6 +247,8 @@ class Slideshow(object):
             if len(self.queue):
                 next_image = self.queue.pop(0)
                 self.history.append(next_image)
+                # Now this has been viewed, don't select it randomly in future
+                self.selector.remove(next_image.rel_dir, next_image.filename)
                 self.show_image(next_image)
             else:
                 self.random_image()
@@ -341,3 +400,20 @@ def image_datatime(image):
         return None
     else:
         return timestamp
+
+
+def hide_hidden_files(master):
+    """Major incantations to hide hidden files in file browser"""
+    try:
+        # call a dummy dialog with an impossible option to initialize the file
+        # dialog without really getting a dialog window; this will throw a
+        # TclError, so we need a try...except :
+        try:
+            master.tk.call('tk_getOpenFile', '-foobarbaz')
+        except tk.TclError:
+            pass
+        # now set the magic variables accordingly
+        master.tk.call('set', '::tk::dialog::file::showHiddenBtn', '1')
+        master.tk.call('set', '::tk::dialog::file::showHiddenVar', '0')
+    except:
+        pass

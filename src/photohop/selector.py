@@ -32,11 +32,24 @@ class PhotoSelector(object):
 
     def get_photo(self):
         # For now, just choose dirs at random, then choose a random photo
+        if len(self.photo_dirs) == 0:
+            raise ValueError("no more photos left")
         dir = random.choice(self.photo_dirs)
         filenames = self.photo_dir_images[dir]
         # Choose a random photo
         filename = random.choice(filenames)
+        # Remove this from the directory's image, so it doesn't get selected again
+        self.remove(dir, filename)
         return SelectedPhoto(dir, filename, self.root_dir)
+
+    def remove(self, dir, filename):
+        """ Remove this dir/filename, so it never gets randomly selected in future """
+        if dir in self.photo_dir_images:
+            if filename in self.photo_dir_images[dir]:
+                self.photo_dir_images[dir].remove(filename)
+            if len(self.photo_dir_images[dir]) == 0:
+                del self.photo_dir_images[dir]
+                self.photo_dirs.remove(dir)
 
 
 class SelectedPhoto(object):
