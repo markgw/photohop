@@ -16,15 +16,12 @@ import datetime
 import logging
 import os
 import subprocess
+import tkinter as tk
+import tkinter.ttk as ttk
+import ttkthemes
 from pathlib import Path
+from tkinter import filedialog
 from collections import OrderedDict
-
-import pyglet
-
-from pyglet_gui.theme import Theme
-from pyglet_gui.manager import Manager
-from pyglet_gui.gui import Label
-
 
 from PIL import Image, ExifTags  # $ pip install pillow
 from PIL import ImageTk
@@ -38,22 +35,10 @@ debug = logging.debug
 def random_slideshow(photo_root=None, exclude=[]):
     config = Config.load()
 
-    # Set up the main window
-    window = pyglet.window.Window(fullscreen=True, vsync=True)
-    # Prepare some basic Pyglet stuff
-    batch = pyglet.graphics.Batch()
-
-    @window.event
-    def on_draw():
-        window.clear()
-        batch.draw()
-
-    # Create a pyglet-gui theme
-    theme = Theme({"font": "Lucida Grande",
-                   "font_size": 12,
-                   "text_color": [255, 0, 0, 255]}, resources_path='')
-
-    #Manager(label, window=window, theme=theme, batch=batch)
+    master = tk.Tk()
+    master.style = ttkthemes.ThemedStyle()
+    master.style.theme_use("equilux")
+    hide_hidden_files(master)
 
     if photo_root is None:
         # Open dialog to select root

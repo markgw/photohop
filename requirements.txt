@@ -1,3 +1,8 @@
 pillow
-git+https://github.com/RedFantom/ttkthemes
-git+https://github.com/ActiveState/appdirs
+#git+https://github.com/RedFantom/ttkthemes
+#git+https://github.com/ActiveState/appdirs
+
+#pyglet
+#git+https://github.com/jorgecarleitao/pyglet-gui.git
+
+wxPython
