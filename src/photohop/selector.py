@@ -1,5 +1,6 @@
-import os
+from pathlib import Path
 import random
+from .index import PhotoIndex
 
 
 class PhotoSelector(object):
@@ -9,77 +10,44 @@ class PhotoSelector(object):
     For now, this just selects randomly from the whole collection.
 
     """
-    def __init__(self, root_dir, exclude):
-        self.root_dir = root_dir
-        self.exclude = exclude
-        self.exclude_paths = [os.path.join(root_dir, x) for x in exclude]
+    def __init__(self, index : PhotoIndex):
+        self.index = index
+        self.current_photo = 0
 
-        self.photo_dir_images = {}
-        self.photo_dirs = []
+    def move_random(self):
+        self.current_photo = random.randint(0, len(self.index) - 1)
 
-        for dirname, dirs, filenames in os.walk(self.root_dir):
-            if dirname in self.exclude_paths:
-                dirs.clear()
-                continue
-            # See if there are any image files in this dir
-            image_fns = image_filenames(filenames)
-            if len(image_fns):
-                rel_dir = os.path.relpath(dirname, root_dir)
-                self.photo_dirs.append(rel_dir)
-                self.photo_dir_images[rel_dir] = image_fns
-        if len(self.photo_dirs) == 0:
-            raise ValueError("no photos found")
+    def move_next(self):
+        self.current_photo += 1
+        if self.current_photo >= len(self.index):
+            self.current_photo = 0
+
+    def move_prev(self):
+        self.current_photo -= 1
+        if self.current_photo < 0:
+            self.current_photo = len(self.index) - 1
 
     def get_photo(self):
-        # For now, just choose dirs at random, then choose a random photo
-        if len(self.photo_dirs) == 0:
-            raise ValueError("no more photos left")
-        dir = random.choice(self.photo_dirs)
-        filenames = self.photo_dir_images[dir]
-        # Choose a random photo
-        filename = random.choice(filenames)
-        # Remove this from the directory's image, so it doesn't get selected again
-        self.remove(dir, filename)
-        return SelectedPhoto(dir, filename, self.root_dir)
-
-    def remove(self, dir, filename):
-        """ Remove this dir/filename, so it never gets randomly selected in future """
-        if dir in self.photo_dir_images:
-            if filename in self.photo_dir_images[dir]:
-                self.photo_dir_images[dir].remove(filename)
-            if len(self.photo_dir_images[dir]) == 0:
-                del self.photo_dir_images[dir]
-                self.photo_dirs.remove(dir)
+        photo_path = Path(self.index[self.current_photo])
+        return SelectedPhoto(photo_path, self.index.root_dir)
 
 
 class SelectedPhoto(object):
-    def __init__(self, rel_dir, filename, root_dir, display_name=None):
-        self.rel_dir = rel_dir
-        self.filename = filename
-        self.root_dir = root_dir
+    def __init__(self, rel_path : Path, root_path : Path, display_name=None):
+        self.rel_path = rel_path
+        self.root_path = root_path
 
-        if display_name is None:
-            self.display_name = os.path.join(self.rel_dir, self.filename)
-        else:
+        if display_name is not None:
             self.display_name = display_name
+        else:
+            self.display_name = str(self.rel_path.parent)
 
         self.timestamp = None
 
     @property
     def abs_path(self):
-        return os.path.join(self.root_dir, self.rel_dir, self.filename)
-
-    @property
-    def rel_path(self):
-        return os.path.join(self.rel_dir, self.filename)
+        return self.root_path / self.rel_path
 
     @property
     def abs_dir(self):
-        return os.path.join(self.root_dir, self.rel_dir)
-
-
-def image_filenames(filenames):
-    return [
-        filename for filename in filenames
-        if filename.lower().rpartition(".")[2] in ["jpg", "png"]
-    ]
+        return self.root_path / self.rel_path.parent
