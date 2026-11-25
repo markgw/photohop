@@ -1,6 +1,7 @@
 from pathlib import Path
 import random
 from .index import PhotoIndex
+from datetime import datetime
 
 
 class PhotoSelector(object):
@@ -29,20 +30,16 @@ class PhotoSelector(object):
 
     def get_photo(self):
         photo_path = Path(self.index[self.current_photo])
-        return SelectedPhoto(photo_path, self.index.root_dir)
+        return SelectedPhoto(photo_path, self.index.root_dir, self.index.df.iloc[self.current_photo]["image_datetime"])
 
 
 class SelectedPhoto(object):
-    def __init__(self, rel_path : Path, root_path : Path, display_name=None):
+    def __init__(self, rel_path : Path, root_path : Path, timestamp : datetime | None = None):
         self.rel_path = rel_path
         self.root_path = root_path
+        self.timestamp = timestamp
 
-        if display_name is not None:
-            self.display_name = display_name
-        else:
-            self.display_name = str(self.rel_path.parent)
-
-        self.timestamp = None
+        self.display_name = str(self.rel_path)
 
     @property
     def abs_path(self):
